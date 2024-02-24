@@ -10,6 +10,7 @@ from typing import Text
 import torch.nn.functional as F
 from pytorch_lightning.loggers import TensorBoardLogger
 import sys
+from tqdm import tqdm
 
 
 def diagram(image, sublevel=True):
@@ -94,6 +95,15 @@ def process_by_conv(img, conv):
     return diagrams
 
 
+def process_baseline(img):
+    diagrams = []
+    res = diagram(torch.Tensor(img.flatten()))
+    for j in range(len(res)):
+        diagrams.append(torch.concatenate([res[j], torch.Tensor([[j, 1] for _ in range(res[j].shape[0])])], axis=1))
+    diagrams = torch.concatenate(diagrams)
+    return diagrams
+
+
 class MyDatasetDirection(torch.utils.data.Dataset):
     def __init__(self, X, y, filter_params):
         self.X = [
@@ -116,6 +126,20 @@ class MyDatasetConv(torch.utils.data.Dataset):
             ]
             self.y = y
 
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+
+class MyDatasetBaseline(torch.utils.data.Dataset):
+    def __init__(self, X, y):
+        self.X = [
+            process_baseline(x / 255).detach().numpy() for x in tqdm(X)
+        ]
+        self.y = y
+    
     def __len__(self):
         return len(self.y)
 

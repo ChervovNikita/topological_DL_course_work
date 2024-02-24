@@ -2,3 +2,4 @@ venv/
 *.pt
 *.mat
 tb_logs
+*.zip
