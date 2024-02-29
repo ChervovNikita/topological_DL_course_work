@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from pytorch_lightning.loggers import TensorBoardLogger
 import sys
 from tqdm import tqdm
+from scipy.ndimage import distance_transform_edt
 
 
 def diagram(image, sublevel=True):
@@ -104,6 +105,12 @@ def process_baseline(img):
     return diagrams
 
 
+def process_cedt(img):
+    edt = distance_transform_edt(img > 0.5)
+    cedt = edt * (img > 0.5) - edt * (img <= 0.5)
+    return process_baseline(cedt)
+
+
 class MyDatasetDirection(torch.utils.data.Dataset):
     def __init__(self, X, y, filter_params):
         self.X = [
@@ -137,6 +144,20 @@ class MyDatasetBaseline(torch.utils.data.Dataset):
     def __init__(self, X, y):
         self.X = [
             process_baseline(x / 255).detach().numpy() for x in tqdm(X)
+        ]
+        self.y = y
+    
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+
+class MyDatasetCEDT(torch.utils.data.Dataset):
+    def __init__(self, X, y):
+        self.X = [
+            process_cedt(x / 255).detach().numpy() for x in tqdm(X)
         ]
         self.y = y
     
