@@ -3,3 +3,7 @@ venv/
 *.mat
 tb_logs
 *.zip
+*.jpg
+.DS_Store
+*.csv
+*.tfrecords
