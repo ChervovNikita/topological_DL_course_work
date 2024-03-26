@@ -68,4 +68,4 @@ class MNIST_Dataset(Dataset):
         return len(self.X)
     
     def __getitem__(self, idx):
-        return self.X[idx].reshape(28, 28), self.y[idx]
+        return self.X[idx].reshape(28, 28), int(self.y[idx])

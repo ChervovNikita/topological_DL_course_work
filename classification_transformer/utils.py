@@ -29,7 +29,7 @@ from gudhi.wasserstein import wasserstein_distance as dist_w
 from IPython.display import clear_output
 
 
-def diagram(image, sublevel=True):
+def diagram(image, device, sublevel=True):
     # get height and square image
     h = int(np.sqrt(image.shape[0]))
     image_sq = image.reshape((h,h))
@@ -49,15 +49,15 @@ def diagram(image, sublevel=True):
         bpx0 = [critical_pairs[0][0][i][0] for i in range(len(critical_pairs[0][0]))]
         dpx0 = [critical_pairs[0][0][i][1] for i in range(len(critical_pairs[0][0]))]
     except IndexError:
-        bpx0 = [[]]
-        dpx0 = [[]]
+        bpx0 = []
+        dpx0 = []
         
     try:
         bpx1 = [critical_pairs[0][1][i][0] for i in range(len(critical_pairs[0][1]))]
         dpx1 = [critical_pairs[0][1][i][1] for i in range(len(critical_pairs[0][1]))]
     except IndexError:
-        bpx1 = [[]]
-        dpx1 = [[]]
+        bpx1 = []
+        dpx1 = []
     
 
     flat_image = image_sq.flatten()
@@ -66,15 +66,15 @@ def diagram(image, sublevel=True):
     if (len(bpx0)!=0):
         pdb0 = flat_image[bpx0][:, None]
         pdd0 = flat_image[dpx0][:, None]
-        pd0 = torch.Tensor(np.hstack([pdb0, pdd0]))
-        pd0 = torch.vstack([pd0, pd0_essential])
+        pd0 = torch.Tensor(torch.hstack([pdb0, pdd0]))
+        pd0 = torch.vstack([pd0, pd0_essential.to(device)])
     else:
         pd0 = pd0_essential
 
     if (len(bpx1)!=0):
         pdb1 = flat_image[bpx1][:, None]
         pdd1 = flat_image[dpx1][:, None]
-        pd1 = torch.Tensor(np.hstack([pdb1, pdd1]))
+        pd1 = torch.Tensor(torch.hstack([pdb1, pdd1]))
     else:
         pd1 = torch.zeros((1, 2))
     
