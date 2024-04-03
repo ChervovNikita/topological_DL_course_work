@@ -8,3 +8,6 @@ tb_logs
 *.csv
 *.tfrecords
 **/__pycache__
+*.gz
+*-ubyte
+data_old/
