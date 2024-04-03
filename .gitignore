@@ -7,3 +7,4 @@ tb_logs
 .DS_Store
 *.csv
 *.tfrecords
+**/__pycache__

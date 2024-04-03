@@ -5,7 +5,7 @@ import torch
 from typing import Text
 from utils import *
 from datasets import *
-from models import TopologicalConvTransformer
+from models import TopologicalConvTransformer, TopologicalBaselineTransformer, TopologicalCedtTransformer, TopologicalDirectionalTransformer
 import loguru
 import sys
 import json
@@ -31,12 +31,7 @@ class DataModule(LightningDataModule):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
 
 
-class ModelConv(LightningModule):
-    def __init__(self, n_in, n_conv, n_hidden, n_out, max_sequence, n_diag, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
-        super(ModelConv, self).__init__()
-        self.model = TopologicalConvTransformer(n_in, n_conv, max_sequence, n_diag, n_hidden, n_out, nhead, num_layers, dim_feedforward, device)
-        self._device = device
-
+class LightningModelBase(LightningModule):
     def forward(self, x):
         return self.model(x)
 
@@ -72,12 +67,48 @@ class ModelConv(LightningModule):
         return torch.optim.Adam(self.parameters(), lr=3e-4, betas=(0.9, 0.999))
 
 
+class ModelConv(LightningModelBase):
+    def __init__(self, n_in, n_conv, max_sequence, n_diag, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
+        super(ModelConv, self).__init__()
+        self.model = TopologicalConvTransformer(n_in, n_conv, max_sequence, n_diag, n_hidden, n_out, nhead, num_layers, dim_feedforward, device)
+        self._device = device
+
+
+class ModelBaseline(LightningModelBase):
+    def __init__(self, max_sequence, n_diag, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
+        super(ModelBaseline, self).__init__()
+        self.model = TopologicalBaselineTransformer(max_sequence, n_diag, n_hidden, n_out, nhead, num_layers, dim_feedforward, device)
+        self._device = device
+
+
+class ModelCEDT(LightningModelBase):
+    def __init__(self, max_sequence, n_diag, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
+        super(ModelCEDT, self).__init__()
+        self.model = TopologicalCedtTransformer(max_sequence, n_diag, n_hidden, n_out, nhead, num_layers, dim_feedforward, device)
+        self._device = device
+
+
+class ModelDirectional(LightningModelBase):
+    def __init__(self, filter_count, max_sequence, n_diag, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
+        super(ModelDirectional, self).__init__()
+        self.model = TopologicalDirectionalTransformer(filter_count, max_sequence, n_diag, n_hidden, n_out, nhead, num_layers, dim_feedforward, device)
+        self._device = device
+
+
 def train(train_path, test_path, model_name, model_type, **kwargs):
     loguru.logger.info(f"Run model")
     data = DataModule(train_path, test_path)
     logger = TensorBoardLogger("tb_logs", name=model_name)
     if model_type == "conv":
         model = ModelConv(**kwargs)
+    elif model_type == "baseline":
+        model = ModelBaseline(**kwargs)
+    elif model_type == "cedt":
+        model = ModelCEDT(**kwargs)
+    elif model_type == "directional":
+        model = ModelDirectional(**kwargs)
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
     trainer = Trainer(accelerator=kwargs['device'], devices=1, min_epochs=100, max_epochs=300, logger=logger)
     trainer.fit(model=model, train_dataloaders=data.train_dataloader(), val_dataloaders=data.val_dataloader())
 
