@@ -11,3 +11,4 @@ tb_logs
 *.gz
 *-ubyte
 data_old/
+data/

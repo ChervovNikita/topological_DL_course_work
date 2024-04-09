@@ -193,3 +193,29 @@ class TopologicalDirectionalTransformer(nn.Module):
             result.append(x[None, :])
         result = torch.concatenate(result, axis=0)
         return result
+
+
+class TopologicalMultiConvTransformer(nn.Module):
+    def __init__(self, n_dims, max_sequence, n_diag, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
+        super(TopologicalMultiConvTransformer, self).__init__()
+        self.max_sequence = max_sequence
+        self.convs = nn.ModuleList(
+            nn.Conv2d(n_dims[i], n_dims[i + 1], 3) for i in range(len(n_dims) - 1)
+        )
+        self.diagram = ConvDiagram(device)
+        self.transformer = Transformer(n_diag, n_hidden, n_out, max_sequence, nhead, num_layers, dim_feedforward)
+
+    def forward(self, xs):
+        result = []
+        for i in range(xs.shape[0]):
+            x = xs[i][None, :, :] / 256
+            for layer in self.convs:
+                x = layer(x)
+            x = self.diagram(x)
+            if x.shape[0] > self.max_sequence:
+                x = x[:self.max_sequence]
+            x = F.pad(x, (0, 0, 0, self.max_sequence - x.shape[0]), "constant", 0)
+            x = self.transformer(x)
+            result.append(x[None, :])
+        result = torch.concatenate(result, axis=0)
+        return result

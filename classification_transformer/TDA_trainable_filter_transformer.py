@@ -5,7 +5,7 @@ import torch
 from typing import Text
 from utils import *
 from datasets import *
-from models import TopologicalConvTransformer, TopologicalBaselineTransformer, TopologicalCedtTransformer, TopologicalDirectionalTransformer
+from models import TopologicalConvTransformer, TopologicalBaselineTransformer, TopologicalCedtTransformer, TopologicalDirectionalTransformer, TopologicalMultiConvTransformer
 import loguru
 import sys
 import json
@@ -74,6 +74,13 @@ class ModelConv(LightningModelBase):
         self._device = device
 
 
+class ModelMultiConv(LightningModelBase):
+    def __init__(self, n_dims, max_sequence, n_diag, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
+        super(ModelMultiConv, self).__init__()
+        self.model = TopologicalMultiConvTransformer(n_dims, max_sequence, n_diag, n_hidden, n_out, nhead, num_layers, dim_feedforward, device)
+        self._device = device
+
+
 class ModelBaseline(LightningModelBase):
     def __init__(self, max_sequence, n_diag, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device='cuda'):
         super(ModelBaseline, self).__init__()
@@ -107,6 +114,8 @@ def train(train_path, test_path, model_name, model_type, **kwargs):
         model = ModelCEDT(**kwargs)
     elif model_type == "directional":
         model = ModelDirectional(**kwargs)
+    elif model_type == "multi_conv":
+        model = ModelMultiConv(**kwargs)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     trainer = Trainer(accelerator=kwargs['device'], devices=1, min_epochs=100, max_epochs=300, logger=logger)
