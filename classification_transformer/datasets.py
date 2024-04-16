@@ -59,6 +59,20 @@ class MyDatasetCEDT(torch.utils.data.Dataset):
         return self.X[idx], self.y[idx]
 
 
+class MyDatasetCedtThickening(torch.utils.data.Dataset):
+    def __init__(self, X, y, window_size):
+        self.X = [
+            process_cedt_thickening(x / 255, window_size).detach().numpy() for x in tqdm(X)
+        ]
+        self.y = y
+    
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+
+
 class MNIST_Dataset(Dataset):
     def __init__(self, X, y):
         self.X = X

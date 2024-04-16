@@ -89,12 +89,12 @@ def process_by_direction(img, alpha):
     return np.maximum(direction_filter, img)
 
 
-def process_image(img, filter_params):
+def process_image(img, filter_params, device):
     w = int(np.sqrt(img.flatten().shape[0]))
     imgs = [process_by_direction(img.reshape(w, w), alpha) for alpha in filter_params]
     diagrams = []
     for i, img in enumerate(imgs):
-        res = diagram(torch.Tensor(img.flatten()))
+        res = diagram(torch.Tensor(img.flatten()), device=device)
         for j in range(len(res)):
             if not res[j].shape[0]:
                 diagrams.append(torch.zeros(0, 4))
@@ -105,12 +105,12 @@ def process_image(img, filter_params):
     return diagrams
 
 
-def process_by_conv(img, conv):
+def process_by_conv(img, conv, device):
     w = int(np.sqrt(img.flatten().shape[0]))
     img = conv(torch.Tensor(img).reshape(1, w, w)).detach()
     diagrams = []
     for i in range(img.shape[0]):
-        res = diagram(img[i].flatten())
+        res = diagram(img[i].flatten(), device=device)
         for j in range(len(res)):
             if not res[j].shape[0]:
                 diagrams.append(torch.zeros(0, 4))
@@ -120,9 +120,9 @@ def process_by_conv(img, conv):
     return diagrams
 
 
-def process_baseline(img):
+def process_baseline(img, device):
     diagrams = []
-    res = diagram(torch.Tensor(img.flatten()))
+    res = diagram(torch.Tensor(img.flatten()), device=device)
     for j in range(len(res)):
         if not res[j].shape[0]:
             diagrams.append(torch.zeros(0, 4))
@@ -132,14 +132,16 @@ def process_baseline(img):
     return diagrams
 
 
-def process_cedt(img):
-    edt = distance_transform_edt(img > 0.5)
+def process_cedt(img, device):
+    img /= img.max()
+    edt = torch.Tensor(distance_transform_edt(img > 0.5))
     cedt = edt * (img > 0.5) - edt * (img <= 0.5)
-    return process_baseline(cedt)
+    return process_baseline(cedt, device=device)
 
 
-def process_cedt_thickening(img, window_size):
+def process_cedt_thickening(img, window_size, device):
+    img /= img.max()
     img = maximum_filter(img, size=window_size)
-    edt = distance_transform_edt(img > 0.5)
+    edt = torch.Tensor(distance_transform_edt(img > 0.5))
     cedt = edt * (img > 0.5) - edt * (img <= 0.5)
-    return process_baseline(cedt)
+    return process_baseline(cedt, device=device)
