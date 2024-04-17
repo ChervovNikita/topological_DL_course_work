@@ -134,14 +134,16 @@ def process_baseline(img, device):
 
 def process_cedt(img, device):
     img /= img.max()
-    edt = torch.Tensor(distance_transform_edt(img > 0.5))
-    cedt = edt * (img > 0.5) - edt * (img <= 0.5)
+    positive_edt = torch.Tensor(distance_transform_edt(img > 0.5))
+    negative_edt = torch.Tensor(distance_transform_edt(img <= 0.5))
+    cedt = positive_edt - negative_edt
     return process_baseline(cedt, device=device)
 
 
 def process_cedt_thickening(img, window_size, device):
     img /= img.max()
     img = maximum_filter(img, size=window_size)
-    edt = torch.Tensor(distance_transform_edt(img > 0.5))
-    cedt = edt * (img > 0.5) - edt * (img <= 0.5)
+    positive_edt = torch.Tensor(distance_transform_edt(img > 0.5))
+    negative_edt = torch.Tensor(distance_transform_edt(img <= 0.5))
+    cedt = positive_edt - negative_edt
     return process_baseline(cedt, device=device)
