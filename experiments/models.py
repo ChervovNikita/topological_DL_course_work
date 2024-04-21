@@ -8,17 +8,17 @@ import transforms
 
 
 class Transformer(torch.nn.Module):
-    def __init__(self, n_in, n_hidden, n_out, seq_size=1024, nhead=2, num_layers=2, dim_feedforward=16):
+    def __init__(self, n_in, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16):
         super(Transformer, self).__init__()
         self.embeddings = nn.Linear(n_in, n_hidden)
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=n_hidden, nhead=nhead, dim_feedforward=dim_feedforward, batch_first=True)
         self.transformer = nn.TransformerEncoder(encoder_layer=self.encoder_layer, num_layers=num_layers)
-        self.classifier = nn.Linear(seq_size, n_out)
+        self.classifier = nn.Linear(n_hidden, n_out)
 
     def forward(self, X):
         X = self.embeddings(X)
         X = self.transformer(X)
-        X = X.mean(dim=-1)
+        X = X.mean(dim=1)
         X = self.classifier(X)
         X = X.softmax(dim=-1)
         return X
@@ -60,9 +60,9 @@ class LightningTransformer(LightningModule):
 ### StaticTransformer
 
 class StaticTransformer(LightningTransformer):
-    def __init__(self, n_in, n_hidden, n_out, seq_size=1024, nhead=2, num_layers=2, dim_feedforward=16, device="cuda"):
+    def __init__(self, n_in, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device="cuda"):
         super(StaticTransformer, self).__init__()
-        self.transformer = Transformer(n_in, n_hidden, n_out, seq_size, nhead, num_layers, dim_feedforward)
+        self.transformer = Transformer(n_in, n_hidden, n_out, nhead, num_layers, dim_feedforward)
         self._device = device
     
     def forward(self, X):
@@ -72,20 +72,20 @@ class StaticTransformer(LightningTransformer):
 ### Conv Transformer
 
 class ConvTransformer(LightningTransformer):
-    def __init__(self, n_dims, n_hidden, n_out, seq_size=1024, nhead=2, num_layers=2, dim_feedforward=16, device="cuda"):
+    def __init__(self, n_dims, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device="cuda"):
         super(ConvTransformer, self).__init__()
         self.convs = nn.ModuleList([
             nn.Conv2d(n_dims[i], n_dims[i+1], kernel_size=3) for i in range(len(n_dims) - 1)
         ])
-        self.transformer = Transformer(n_dims[-1], n_hidden, n_out, seq_size, nhead, num_layers, dim_feedforward)
+        self.transformer = Transformer(n_dims[-1], n_hidden, n_out, nhead, num_layers, dim_feedforward)
         self._device = device
-        self.seq_size = seq_size
 
-    def forward(self, img):
+    def forward(self, img):  # img.shape = [batch_size, w, h]
         img = img.float()[:, None, :, :]
         for conv in self.convs:
             img = conv(img)
-        diagrams = []
+        max_diagram_size = 0
+        results = []
         for i in range(img.shape[0]):
             res = transforms.diagram(img[i].flatten(), self._device)
             diagram = []
@@ -95,10 +95,15 @@ class ConvTransformer(LightningTransformer):
                 else:
                     diagram.append(torch.concatenate([res[j], torch.Tensor([[j, i] for _ in range(res[j].shape[0])])], axis=1))
             diagram = torch.concatenate(diagram)
-            if diagram.shape[0] > self.seq_size:
-                diagram = diagram[:self.seq_size]
-            if diagram.shape[0] < self.seq_size:
-                diagram = torch.concatenate([diagram, torch.zeros(self.seq_size - diagram.shape[0], 4)])
+            results.append(diagram)
+            max_diagram_size = max(max_diagram_size, diagram.shape[0])
+        diagrams = []
+        for i in range(img.shape[0]):
+            diagram = results[i]
+            if diagram.shape[0] > max_diagram_size:
+                diagram = diagram[:max_diagram_size]
+            if diagram.shape[0] < max_diagram_size:
+                diagram = torch.concatenate([diagram, torch.zeros(max_diagram_size - diagram.shape[0], 4)])
             diagrams.append(diagram)
         diagrams = torch.stack(diagrams)
         return self.transformer(diagrams)
@@ -107,16 +112,16 @@ class ConvTransformer(LightningTransformer):
 ### Directional Transformer
 
 class DirectionalTransformer(LightningTransformer):
-    def __init__(self, n_in, dir_count, n_hidden, n_out, seq_size=1024, nhead=2, num_layers=2, dim_feedforward=16, device="cuda"):
+    def __init__(self, n_in, dir_count, n_hidden, n_out, nhead=2, num_layers=2, dim_feedforward=16, device="cuda"):
         super(DirectionalTransformer, self).__init__()
-        self.transformer = Transformer(n_in, n_hidden, n_out, seq_size, nhead, num_layers, dim_feedforward)
+        self.transformer = Transformer(n_in, n_hidden, n_out, nhead, num_layers, dim_feedforward)
         self.dirs = nn.Parameter(torch.randn(dir_count) * 2 * math.pi)
         self._device = device
-        self.seq_size = seq_size
     
     def forward(self, image_batch):
         image_batch = image_batch.float()
-        diagrams = []
+        max_diagram_size = 0
+        results = []
         for image_id in range(image_batch.shape[0]):
             imgs = [transforms.process_by_direction(image_batch[image_id], self.dirs[i]) for i in range(len(self.dirs))]
             diagram = []
@@ -128,10 +133,15 @@ class DirectionalTransformer(LightningTransformer):
                     else:
                         diagram.append(torch.concatenate([res[j], torch.Tensor([[j, self.dirs[i]] for _ in range(res[j].shape[0])])], axis=1))
             diagram = torch.concatenate(diagram)
-            if diagram.shape[0] > self.seq_size:
-                diagram = diagram[:self.seq_size]
-            if diagram.shape[0] < self.seq_size:
-                diagram = torch.concatenate([diagram, torch.zeros(self.seq_size - diagram.shape[0], 4)])
+            results.append(diagram)
+            max_diagram_size = max(max_diagram_size, diagram.shape[0])
+        diagrams = []
+        for image_id in range(image_batch.shape[0]):
+            diagram = results[image_id]
+            if diagram.shape[0] > max_diagram_size:
+                diagram = diagram[:max_diagram_size]
+            if diagram.shape[0] < max_diagram_size:
+                diagram = torch.concatenate([diagram, torch.zeros(max_diagram_size - diagram.shape[0], 4)])
             diagrams.append(diagram)
         diagrams = torch.stack(diagrams)
         return self.transformer(diagrams.float())
