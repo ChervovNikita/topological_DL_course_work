@@ -1,3 +1,4 @@
+import re
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -77,33 +78,34 @@ class ConvTransformer(LightningTransformer):
         self.convs = nn.ModuleList([
             nn.Conv2d(n_dims[i], n_dims[i+1], kernel_size=3) for i in range(len(n_dims) - 1)
         ])
-        self.transformer = Transformer(n_dims[-1], n_hidden, n_out, nhead, num_layers, dim_feedforward)
+        self.transformer = Transformer(4, n_hidden, n_out, nhead, num_layers, dim_feedforward)
         self._device = device
 
-    def forward(self, img):  # img.shape = [batch_size, w, h]
-        img = img.float()[:, None, :, :]
+    def forward(self, image_batch):  # img.shape = [batch_size, w, h]
+        image_batch = image_batch.float()[:, None, :, :]
         for conv in self.convs:
-            img = conv(img)
+            image_batch = conv(image_batch)
         max_diagram_size = 0
         results = []
-        for i in range(img.shape[0]):
-            res = transforms.diagram(img[i].flatten(), self._device)
+        for i in range(image_batch.shape[0]):
+            imgs = [transforms.diagram(image_batch[i, j].flatten(), self._device) for j in range(image_batch.shape[1])]
             diagram = []
-            for j in range(len(res)):
-                if not res[j].shape[0]:
-                    diagram.append(torch.zeros(0, 4))
-                else:
-                    diagram.append(torch.concatenate([res[j], torch.Tensor([[j, i] for _ in range(res[j].shape[0])])], axis=1))
+            for k, img in enumerate(imgs):
+                for j in range(len(img)):
+                    if not img[j].shape[0]:
+                        diagram.append(torch.zeros(0, 4).to(self._device))
+                    else:
+                        diagram.append(torch.concatenate([img[j], torch.Tensor([[j, k] for _ in range(img[j].shape[0])]).to(self._device)], axis=1))
             diagram = torch.concatenate(diagram)
             results.append(diagram)
             max_diagram_size = max(max_diagram_size, diagram.shape[0])
         diagrams = []
-        for i in range(img.shape[0]):
+        for i in range(image_batch.shape[0]):
             diagram = results[i]
             if diagram.shape[0] > max_diagram_size:
                 diagram = diagram[:max_diagram_size]
             if diagram.shape[0] < max_diagram_size:
-                diagram = torch.concatenate([diagram, torch.zeros(max_diagram_size - diagram.shape[0], 4)])
+                diagram = torch.concatenate([diagram, torch.zeros(max_diagram_size - diagram.shape[0], 4).to(self._device)])
             diagrams.append(diagram)
         diagrams = torch.stack(diagrams)
         return self.transformer(diagrams)
@@ -129,9 +131,9 @@ class DirectionalTransformer(LightningTransformer):
                 res = transforms.diagram(torch.Tensor(img.flatten()), self._device)
                 for j in range(len(res)):
                     if not res[j].shape[0]:
-                        diagram.append(torch.zeros(0, 4))
+                        diagram.append(torch.zeros(0, 4).to(self._device))
                     else:
-                        diagram.append(torch.concatenate([res[j], torch.Tensor([[j, self.dirs[i]] for _ in range(res[j].shape[0])])], axis=1))
+                        diagram.append(torch.concatenate([res[j], torch.Tensor([[j, self.dirs[i]] for _ in range(res[j].shape[0])]).to(self._device)]))
             diagram = torch.concatenate(diagram)
             results.append(diagram)
             max_diagram_size = max(max_diagram_size, diagram.shape[0])
@@ -141,7 +143,7 @@ class DirectionalTransformer(LightningTransformer):
             if diagram.shape[0] > max_diagram_size:
                 diagram = diagram[:max_diagram_size]
             if diagram.shape[0] < max_diagram_size:
-                diagram = torch.concatenate([diagram, torch.zeros(max_diagram_size - diagram.shape[0], 4)])
+                diagram = torch.concatenate([diagram, torch.zeros(max_diagram_size - diagram.shape[0], 4).to(self._device)])
             diagrams.append(diagram)
         diagrams = torch.stack(diagrams)
         return self.transformer(diagrams.float())
