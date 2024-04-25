@@ -115,15 +115,15 @@ classes_count = 2
 images = np.zeros((classes_count * count, 64, 64))
 
 # class A
-N = 100
-S = 30
+N = 240
+S = 28
 
 for n in tqdm(range(count)):
     images[n] = generate(N, S)
     
 # class B
 N = 250
-S = 10
+S = 25
 
 for n in tqdm(range(count)):
     images[n+count] = generate(N, S)
