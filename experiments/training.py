@@ -25,7 +25,10 @@ def train(train_path, test_path, model_name, model_type, devices, epoches_count,
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
-    trainer = Trainer(accelerator=kwargs['device'], devices=devices, min_epochs=epoches_count, max_epochs=epoches_count, logger=logger, strategy=DDPStrategy(find_unused_parameters=True))
+    if devices > 1:
+        trainer = Trainer(accelerator=kwargs['device'], devices=devices, min_epochs=epoches_count, max_epochs=epoches_count, logger=logger, strategy=DDPStrategy(find_unused_parameters=True))
+    else:
+        trainer = Trainer(accelerator=kwargs['device'], devices=devices, min_epochs=epoches_count, max_epochs=epoches_count, logger=logger)
     trainer.fit(model=model, train_dataloaders=data.train_dataloader(), val_dataloaders=data.val_dataloader())
 
 
